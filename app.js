@@ -132,12 +132,12 @@ function initTheme() {
   const saved = localStorage.getItem('waypoint-theme');
   const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
   const theme = saved || (prefersDark ? 'dark' : 'light');
-  document.body.setAttribute('data-theme', theme);
+  document.documentElement.setAttribute('data-theme', theme);
 }
 el.themeToggle.addEventListener('click', () => {
-  const cur = document.body.getAttribute('data-theme');
+  const cur = document.documentElement.getAttribute('data-theme');
   const next = cur === 'dark' ? 'light' : 'dark';
-  document.body.setAttribute('data-theme', next);
+  document.documentElement.setAttribute('data-theme', next);
   localStorage.setItem('waypoint-theme', next);
 });
 
