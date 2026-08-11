@@ -555,10 +555,15 @@ function clearRoute() {
   if (currentRouteEndpoint) { map.removeLayer(currentRouteEndpoint); currentRouteEndpoint = null; }
 }
 
+// Dedicated SVG renderer with generous padding so the route doesn't get
+// clipped at its edges when the user zooms or pans right after it's drawn.
+const routeRenderer = L.svg({ padding: 2 });
+
 function drawRoute(route, home, destination) {
   clearRoute();
 
   currentRouteLine = L.polyline(route.latlngs, {
+    renderer: routeRenderer,
     color: '#4285F4',
     weight: 5,
     opacity: 0.92,
@@ -569,24 +574,36 @@ function drawRoute(route, home, destination) {
 
   // Small marker at the destination end of the route so it reads like a Google-Maps pin drop.
   currentRouteEndpoint = L.circleMarker([destination.lat, destination.lng], {
+    renderer: routeRenderer,
     radius: 7, color: '#fff', weight: 3, fillColor: '#4285F4', fillOpacity: 1,
   }).addTo(map);
   currentRouteLine.on('click', clearRoute);
   currentRouteEndpoint.on('click', clearRoute);
 
-  // Smooth "drawing" animation: measure the SVG path length, then animate
-  // its stroke-dashoffset from full length down to 0.
+  // Smooth "drawing" animation using pathLength="1": normalizing the path's
+  // length to 1 means the dash pattern stays correct no matter how the
+  // underlying pixel length changes on zoom/pan redraws — a fixed pixel
+  // dasharray would otherwise go stale and make the line look cut off.
   requestAnimationFrame(() => {
     const path = currentRouteLine.getElement ? currentRouteLine.getElement() : currentRouteLine._path;
-    if (path && path.getTotalLength) {
-      const length = path.getTotalLength();
+    if (path) {
+      path.setAttribute('pathLength', '1');
       path.style.transition = 'none';
-      path.style.strokeDasharray = `${length}`;
-      path.style.strokeDashoffset = `${length}`;
+      path.style.strokeDasharray = '1';
+      path.style.strokeDashoffset = '1';
       // Force a reflow so the browser registers the starting state before we transition it.
       path.getBoundingClientRect();
-      path.style.transition = `stroke-dashoffset 1.2s cubic-bezier(.4,0,.2,1)`;
+      path.style.transition = 'stroke-dashoffset 1.2s cubic-bezier(.4,0,.2,1)';
       requestAnimationFrame(() => { path.style.strokeDashoffset = '0'; });
+      // Once the draw-in finishes, drop the dash styling entirely so the
+      // line is a plain solid stroke — nothing left that could mismatch
+      // after further zoom/pan redraws.
+      setTimeout(() => {
+        path.style.transition = '';
+        path.style.strokeDasharray = '';
+        path.style.strokeDashoffset = '';
+        path.removeAttribute('pathLength');
+      }, 1300);
     }
   });
 
