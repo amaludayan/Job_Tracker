@@ -127,6 +127,7 @@ const el = {
 
   toast: $('#toast'),
   locateBtn: $('#locateBtn'),
+  cancelRouteBtn: $('#cancelRouteBtn'),
 };
 
 /* ---------- Toast ---------- */
@@ -553,7 +554,14 @@ async function fetchRoute(from, to) {
 function clearRoute() {
   if (currentRouteLine) { map.removeLayer(currentRouteLine); currentRouteLine = null; }
   if (currentRouteEndpoint) { map.removeLayer(currentRouteEndpoint); currentRouteEndpoint = null; }
+  el.cancelRouteBtn.classList.remove('show');
 }
+
+el.cancelRouteBtn.addEventListener('click', () => {
+  if (!currentRouteLine) return;
+  clearRoute();
+  toast('Directions cancelled');
+});
 
 // Dedicated SVG renderer with generous padding so the route doesn't get
 // clipped at its edges when the user zooms or pans right after it's drawn.
@@ -608,6 +616,7 @@ function drawRoute(route, home, destination) {
   });
 
   map.flyToBounds(currentRouteLine.getBounds(), { padding: [70, 100], duration: 1.2, easeLinearity: 0.25 });
+  el.cancelRouteBtn.classList.add('show');
 
   const km = (route.distance / 1000).toFixed(1);
   const mins = Math.round(route.duration / 60);

@@ -159,6 +159,26 @@ h1,h2,h3,.display{
 @keyframes locate-pulse{ 0%,100%{ transform:scale(1); } 50%{ transform:scale(0.82); } }
 @keyframes locate-spin{ to{ transform: rotate(360deg); } }
 
+/* ---------- Cancel-directions button (left side, bouncy enter/exit) ---------- */
+.cancel-route-btn{
+  position:absolute; left: max(18px, env(safe-area-inset-left));
+  bottom: calc(max(26px, env(safe-area-inset-bottom)) + 78px);
+  z-index:500;
+  width:46px; height:46px; border-radius:50%;
+  border:1px solid var(--line);
+  background: var(--bg-elev);
+  box-shadow: var(--shadow);
+  display:flex; align-items:center; justify-content:center;
+  cursor:pointer; color: var(--home);
+  opacity:0; transform: scale(0.4) rotate(-90deg);
+  pointer-events:none;
+  transition: opacity .35s cubic-bezier(.34,1.56,.64,1), transform .4s cubic-bezier(.34,1.56,.64,1), background .3s var(--ease);
+}
+.cancel-route-btn svg{ width:20px; height:20px; }
+.cancel-route-btn.show{ opacity:1; transform: scale(1) rotate(0deg); pointer-events:auto; }
+.cancel-route-btn:hover{ transform: scale(1.08) rotate(90deg); background: color-mix(in srgb, var(--home) 12%, var(--bg-elev)); }
+.cancel-route-btn:active{ transform: scale(0.86) rotate(90deg); }
+
 /* ---------- User location (Google-Maps-style blue dot) ---------- */
 .user-dot-icon{ transition: transform .45s cubic-bezier(.4,0,.2,1); will-change: transform; }
 .user-dot{
