@@ -1,4 +1,4 @@
-const SHELL_CACHE = 'waypoint-shell-v1';
+const SHELL_CACHE = 'waypoint-shell-v2'; // bumped: adds flights.js (live air traffic overlay)
 const TILE_CACHE = 'waypoint-tiles-v1';
 
 const SHELL_FILES = [
@@ -6,6 +6,7 @@ const SHELL_FILES = [
   './index.html',
   './styles.css',
   './app.js',
+  './flights.js',
   './manifest.json',
   './icons/icon-192.png',
   './icons/icon-512.png',

@@ -241,6 +241,45 @@ h1,h2,h3,.display{
 .cancel-route-btn:hover{ transform: scale(1.08) rotate(90deg); background: color-mix(in srgb, var(--home) 12%, var(--bg-elev)); }
 .cancel-route-btn:active{ transform: scale(0.86) rotate(90deg); }
 
+/* ---------- Live flight tracking toggle (left side, above cancel-route slot) ---------- */
+.flights-btn{
+  position:absolute; left: max(18px, env(safe-area-inset-left));
+  bottom: calc(max(26px, env(safe-area-inset-bottom)) + 78px + 58px);
+  z-index:500;
+  width:46px; height:46px; border-radius:50%;
+  border:1px solid var(--line);
+  background: var(--bg-elev);
+  box-shadow: var(--shadow);
+  display:flex; align-items:center; justify-content:center;
+  cursor:pointer; color: var(--ink);
+  transition: transform .25s var(--ease), background .3s var(--ease), color .3s var(--ease);
+}
+.flights-btn svg{ width:20px; height:20px; }
+.flights-btn:hover{ transform: translateY(-2px) scale(1.04); }
+.flights-btn:active{ transform: scale(0.92); }
+.flights-btn.active{ background: linear-gradient(145deg, var(--accent), var(--accent-ink)); color:#1E1305; border-color: var(--accent); }
+.flights-badge{
+  position:absolute; top:-4px; right:-4px; min-width:17px; height:17px; padding:0 3px;
+  border-radius:9px; background: var(--home); color:#fff; font-size:9.5px; font-weight:700;
+  display:none; align-items:center; justify-content:center; line-height:1;
+  box-shadow: 0 0 0 2px var(--bg-elev);
+}
+.flights-badge.show{ display:flex; }
+
+/* The overlay canvas itself must never intercept map gestures. */
+.flights-canvas{ pointer-events:none; }
+
+/* ---------- Flight info popup ---------- */
+.flight-popup-wrap .leaflet-popup-content-wrapper{
+  background: var(--bg-elev); color: var(--ink); border-radius:14px; box-shadow: var(--shadow);
+}
+.flight-popup-wrap .leaflet-popup-tip{ background: var(--bg-elev); }
+.flight-popup{ min-width:168px; font-family: inherit; }
+.flight-popup .fp-title{ font-weight:700; font-size:14px; margin-bottom:6px; letter-spacing:.02em; }
+.flight-popup .fp-row{ display:flex; justify-content:space-between; gap:10px; font-size:12px; color: var(--ink-soft); padding:2px 0; }
+.flight-popup .fp-row b{ color: var(--ink); font-weight:600; }
+.flight-popup .fp-route{ margin-top:8px; padding-top:8px; border-top:1px solid var(--line); font-size:12px; color: var(--accent-ink); font-weight:600; }
+
 /* ---------- User location (Google-Maps-style blue dot) ---------- */
 .user-dot-icon, .user-nav-icon{ transition: transform .45s cubic-bezier(.4,0,.2,1); will-change: transform; }
 .user-dot{

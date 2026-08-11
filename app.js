@@ -232,6 +232,9 @@ function initMap() {
 
   // Long-press-to-pick on the map
   attachLongPress(map);
+
+  // Let flights.js (live air traffic overlay) know the map now exists.
+  window.dispatchEvent(new CustomEvent('waypoint:map-ready', { detail: { map } }));
 }
 
 /* Long-press detection that opens the form pre-filled with the tapped point.
