@@ -132,6 +132,61 @@ h1,h2,h3,.display{
 .fab:active svg{ transform: rotate(135deg); }
 .fab.open svg{ transform: rotate(135deg); }
 
+/* ---------- Locate button ---------- */
+.locate-btn{
+  position:absolute; right: max(18px, env(safe-area-inset-right));
+  bottom: calc(max(26px, env(safe-area-inset-bottom)) + 78px);
+  z-index:500;
+  width:46px; height:46px; border-radius:50%;
+  border:1px solid var(--line);
+  background: var(--bg-elev);
+  box-shadow: var(--shadow);
+  display:flex; align-items:center; justify-content:center;
+  cursor:pointer; color: var(--ink);
+  transition: transform .25s var(--ease), background .3s var(--ease), color .3s var(--ease);
+}
+.locate-btn svg{ width:21px; height:21px; transition: transform .3s var(--ease); }
+.locate-btn:hover{ transform: translateY(-2px) scale(1.04); }
+.locate-btn:active{ transform: scale(0.92); }
+.locate-btn.active{ background: #3B82F6; color:#fff; border-color:#3B82F6; }
+.locate-btn.locating svg{ animation: locate-pulse 1s ease-in-out infinite; }
+.locate-btn .locate-spinner{
+  position:absolute; inset:-4px; border-radius:50%;
+  border: 2px solid transparent; border-top-color:#3B82F6; border-right-color:#3B82F6;
+  opacity:0; pointer-events:none;
+}
+.locate-btn.locating .locate-spinner{ opacity:1; animation: locate-spin .8s linear infinite; }
+@keyframes locate-pulse{ 0%,100%{ transform:scale(1); } 50%{ transform:scale(0.82); } }
+@keyframes locate-spin{ to{ transform: rotate(360deg); } }
+
+/* ---------- User location (Google-Maps-style blue dot) ---------- */
+.user-dot-icon{ transition: transform .45s cubic-bezier(.4,0,.2,1); will-change: transform; }
+.user-dot{
+  width:18px; height:18px; border-radius:50%;
+  background:#4285F4; border:3px solid #fff;
+  box-shadow: 0 0 0 1px rgba(66,133,244,.35), 0 2px 6px rgba(0,0,0,.35);
+  position:relative;
+}
+.user-dot::after{
+  content:''; position:absolute; inset:-14px; border-radius:50%;
+  background: radial-gradient(circle, rgba(66,133,244,.35) 0%, rgba(66,133,244,0) 70%);
+  animation: user-dot-pulse 2.2s ease-out infinite;
+}
+.user-dot.heading::before{
+  content:''; position:absolute; left:50%; top:50%; width:0; height:0;
+  border-left:7px solid transparent; border-right:7px solid transparent;
+  border-bottom:14px solid rgba(66,133,244,.9);
+  transform: translate(-50%,-32px) rotate(var(--heading, 0deg));
+  transform-origin: 50% 32px;
+}
+@keyframes user-dot-pulse{
+  0%{ transform:scale(0.4); opacity:.9; }
+  100%{ transform:scale(1); opacity:0; }
+}
+.user-accuracy-circle{
+  transition: all .45s cubic-bezier(.4,0,.2,1);
+}
+
 /* ---------- Markers ---------- */
 .pin{
   width:30px; height:30px;

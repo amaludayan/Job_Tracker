@@ -67,6 +67,11 @@ let pickMode = null;      // 'form' | null  — waiting for a map tap to fill co
 let editingId = null;     // id currently being edited, or null for a new entry
 let pendingKind = null;   // 'home' | 'interview' chosen in step 1
 let activeDetailId = null;
+let userMarker = null;
+let userAccuracyCircle = null;
+let watchId = null;
+let locateActive = false;
+let firstFixHandled = false;
 
 const $ = (sel) => document.querySelector(sel);
 const el = {
@@ -117,6 +122,7 @@ const el = {
   closeSettings: $('#closeSettings'),
 
   toast: $('#toast'),
+  locateBtn: $('#locateBtn'),
 };
 
 /* ---------- Toast ---------- */
@@ -460,6 +466,100 @@ el.deleteDetail.addEventListener('click', async () => {
   hideOverlay(el.overlayDetail);
   toast('Waypoint deleted');
   activeDetailId = null;
+});
+
+/* ---------- Live user location (Google-Maps-style blue dot) ---------- */
+function userDotIcon() {
+  return L.divIcon({
+    className: 'user-dot-icon',
+    html: '<div class="user-dot"></div>',
+    iconSize: [18, 18],
+    iconAnchor: [9, 9],
+  });
+}
+
+function upsertUserLocation(pos, { fly = false } = {}) {
+  const { latitude, longitude, accuracy } = pos.coords;
+  const latlng = [latitude, longitude];
+
+  if (!userMarker) {
+    userMarker = L.marker(latlng, { icon: userDotIcon(), zIndexOffset: 1000, interactive: false }).addTo(map);
+  } else {
+    // setLatLng triggers Leaflet's internal transform update; the CSS transition
+    // on .user-dot-icon animates that transform smoothly instead of jumping.
+    userMarker.setLatLng(latlng);
+  }
+
+  if (!userAccuracyCircle) {
+    userAccuracyCircle = L.circle(latlng, {
+      radius: accuracy,
+      className: 'user-accuracy-circle',
+      color: '#4285F4',
+      weight: 1,
+      opacity: 0.35,
+      fillColor: '#4285F4',
+      fillOpacity: 0.12,
+      interactive: false,
+    }).addTo(map);
+  } else {
+    userAccuracyCircle.setLatLng(latlng);
+    userAccuracyCircle.setRadius(accuracy);
+  }
+
+  if (fly) {
+    // Pick a sensible zoom: closer if GPS is precise, wider if accuracy is poor.
+    const targetZoom = accuracy <= 30 ? 17 : accuracy <= 100 ? 15 : 13;
+    map.flyTo(latlng, Math.max(map.getZoom(), targetZoom), { duration: 1.1, easeLinearity: 0.25 });
+  }
+}
+
+function stopLocating() {
+  if (watchId !== null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
+  locateActive = false;
+  firstFixHandled = false;
+  el.locateBtn.classList.remove('active', 'locating');
+  if (userMarker) { map.removeLayer(userMarker); userMarker = null; }
+  if (userAccuracyCircle) { map.removeLayer(userAccuracyCircle); userAccuracyCircle = null; }
+}
+
+function startLocating() {
+  if (!navigator.geolocation) { toast('Geolocation isn\'t available on this device.'); return; }
+  locateActive = true;
+  firstFixHandled = false;
+  el.locateBtn.classList.add('locating');
+
+  watchId = navigator.geolocation.watchPosition(
+    (pos) => {
+      const isFirstFix = !firstFixHandled;
+      firstFixHandled = true;
+      upsertUserLocation(pos, { fly: isFirstFix });
+      if (isFirstFix) {
+        el.locateBtn.classList.remove('locating');
+        el.locateBtn.classList.add('active');
+      }
+    },
+    (err) => {
+      el.locateBtn.classList.remove('locating', 'active');
+      locateActive = false;
+      if (err.code === err.PERMISSION_DENIED) {
+        toast('Location permission denied.');
+      } else {
+        toast('Could not get your location.');
+      }
+    },
+    { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }
+  );
+}
+
+el.locateBtn.addEventListener('click', () => {
+  if (locateActive) {
+    // Second tap while active: just re-center smoothly on the last known fix.
+    if (userMarker) {
+      map.flyTo(userMarker.getLatLng(), Math.max(map.getZoom(), 16), { duration: 0.9, easeLinearity: 0.25 });
+    }
+    return;
+  }
+  startLocating();
 });
 
 /* ---------- Manage (edit list) sheet — top-left button ---------- */
