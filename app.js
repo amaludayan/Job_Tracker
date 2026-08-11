@@ -113,6 +113,7 @@ const el = {
   importFile: $('#importFile'),
   clearCacheBtn: $('#clearCacheBtn'),
   cacheDesc: $('#cacheDesc'),
+  deleteAllBtn: $('#deleteAllBtn'),
   closeSettings: $('#closeSettings'),
 
   toast: $('#toast'),
@@ -576,6 +577,19 @@ el.clearCacheBtn.addEventListener('click', async () => {
   }
   updateCacheDesc();
   toast('Offline tile cache cleared');
+});
+
+el.deleteAllBtn.addEventListener('click', async () => {
+  if (waypoints.length === 0) { toast('No waypoints to delete'); return; }
+  if (!confirm(`Delete all ${waypoints.length} waypoint${waypoints.length === 1 ? '' : 's'}? This cannot be undone.`)) return;
+  await dbClear();
+  markersById.forEach((m) => map.removeLayer(m));
+  markersById.clear();
+  waypoints = [];
+  updateEmptyHint();
+  renderManageList();
+  hideOverlay(el.overlaySettings);
+  toast('All waypoints deleted');
 });
 
 async function updateCacheDesc() {
