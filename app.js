@@ -72,6 +72,8 @@ let userAccuracyCircle = null;
 let watchId = null;
 let locateActive = false;
 let firstFixHandled = false;
+let currentRouteLine = null;
+let currentRouteEndpoint = null;
 
 const $ = (sel) => document.querySelector(sel);
 const el = {
@@ -107,6 +109,8 @@ const el = {
   editDetailBtn: $('#editDetailBtn'),
   closeDetail: $('#closeDetail'),
   deleteDetail: $('#deleteDetail'),
+  directionsBtn: $('#directionsBtn'),
+  directionsBtnLabel: $('#directionsBtnLabel'),
 
   overlayManage: $('#overlayManage'),
   manageList: $('#manageList'),
@@ -134,18 +138,44 @@ function toast(msg) {
   toastTimer = setTimeout(() => el.toast.classList.remove('show'), 2400);
 }
 
-/* ---------- Theme ---------- */
-function initTheme() {
-  const saved = localStorage.getItem('waypoint-theme');
-  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-  const theme = saved || (prefersDark ? 'dark' : 'light');
+/* ---------- Theme (auto by device time, unless user overrides) ---------- */
+const THEME_KEY = 'waypoint-theme';         // manual override, once user taps the toggle
+const DAY_START_HOUR = 6;                    // 06:00 -> light
+const DAY_END_HOUR = 18;                     // 18:00 -> dark
+let themeAutoTimer = null;
+
+function timeBasedTheme() {
+  const h = new Date().getHours();
+  return (h >= DAY_START_HOUR && h < DAY_END_HOUR) ? 'light' : 'dark';
+}
+
+function applyTheme(theme) {
   document.documentElement.setAttribute('data-theme', theme);
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute('content', theme === 'dark' ? '#0B1220' : '#F6F1E4');
+}
+
+function initTheme() {
+  const saved = localStorage.getItem(THEME_KEY);
+  if (saved === 'light' || saved === 'dark') {
+    applyTheme(saved);
+    return; // user has explicitly chosen — device time no longer drives it
+  }
+  applyTheme(timeBasedTheme());
+  // Re-check every minute so the map flips light/dark right at sunrise/sunset
+  // hours without needing a reload, as long as the user hasn't overridden it.
+  if (themeAutoTimer) clearInterval(themeAutoTimer);
+  themeAutoTimer = setInterval(() => {
+    if (localStorage.getItem(THEME_KEY)) { clearInterval(themeAutoTimer); return; }
+    applyTheme(timeBasedTheme());
+  }, 60000);
 }
 el.themeToggle.addEventListener('click', () => {
   const cur = document.documentElement.getAttribute('data-theme');
   const next = cur === 'dark' ? 'light' : 'dark';
-  document.documentElement.setAttribute('data-theme', next);
-  localStorage.setItem('waypoint-theme', next);
+  applyTheme(next);
+  localStorage.setItem(THEME_KEY, next);
+  if (themeAutoTimer) { clearInterval(themeAutoTimer); themeAutoTimer = null; }
 });
 
 /* ---------- Map setup ---------- */
@@ -437,8 +467,20 @@ function openDetail(id) {
     el.detailNote.textContent = 'No note added.';
     el.detailNote.classList.add('empty');
   }
+  configureDirectionsButton(wp);
   showOverlay(el.overlayDetail);
   map.flyTo([wp.lat, wp.lng], Math.max(map.getZoom(), 14), { duration: 0.8 });
+}
+
+function configureDirectionsButton(wp) {
+  const home = waypoints.find((w) => w.kind === 'home');
+  if (wp.kind === 'home') {
+    el.directionsBtn.style.display = 'none';
+  } else {
+    el.directionsBtn.style.display = 'flex';
+    el.directionsBtn.disabled = false;
+    el.directionsBtnLabel.textContent = home ? 'Directions from Home' : 'Set a home location first';
+  }
 }
 
 el.closeDetail.addEventListener('click', () => hideOverlay(el.overlayDetail));
@@ -467,6 +509,95 @@ el.deleteDetail.addEventListener('click', async () => {
   toast('Waypoint deleted');
   activeDetailId = null;
 });
+
+/* ---------- Directions from Home (accurate road route, drawn smoothly) ---------- */
+el.directionsBtn.addEventListener('click', async () => {
+  const wp = waypoints.find((w) => w.id === activeDetailId);
+  if (!wp) return;
+  const home = waypoints.find((w) => w.kind === 'home');
+  if (!home) { toast('Add your home waypoint first, then try again.'); return; }
+  if (home.id === wp.id) return;
+
+  el.directionsBtn.disabled = true;
+  const prevLabel = el.directionsBtnLabel.textContent;
+  el.directionsBtnLabel.textContent = 'Finding route…';
+
+  try {
+    const route = await fetchRoute(home, wp);
+    hideOverlay(el.overlayDetail);
+    drawRoute(route, home, wp);
+  } catch (err) {
+    console.error(err);
+    toast('Could not fetch directions. Check your connection.');
+  } finally {
+    el.directionsBtn.disabled = false;
+    el.directionsBtnLabel.textContent = prevLabel;
+  }
+});
+
+async function fetchRoute(from, to) {
+  // OSRM's public, key-free routing API — real road-following directions.
+  const url = `https://router.project-osrm.org/route/v1/driving/${from.lng},${from.lat};${to.lng},${to.lat}?overview=full&geometries=geojson`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`OSRM ${res.status}`);
+  const data = await res.json();
+  const route = data.routes?.[0];
+  if (!route) throw new Error('No route found');
+  return {
+    latlngs: route.geometry.coordinates.map(([lng, lat]) => [lat, lng]),
+    distance: route.distance,   // meters
+    duration: route.duration,   // seconds
+  };
+}
+
+function clearRoute() {
+  if (currentRouteLine) { map.removeLayer(currentRouteLine); currentRouteLine = null; }
+  if (currentRouteEndpoint) { map.removeLayer(currentRouteEndpoint); currentRouteEndpoint = null; }
+}
+
+function drawRoute(route, home, destination) {
+  clearRoute();
+
+  currentRouteLine = L.polyline(route.latlngs, {
+    color: '#4285F4',
+    weight: 5,
+    opacity: 0.92,
+    lineJoin: 'round',
+    lineCap: 'round',
+    className: 'route-line',
+  }).addTo(map);
+
+  // Small marker at the destination end of the route so it reads like a Google-Maps pin drop.
+  currentRouteEndpoint = L.circleMarker([destination.lat, destination.lng], {
+    radius: 7, color: '#fff', weight: 3, fillColor: '#4285F4', fillOpacity: 1,
+  }).addTo(map);
+  currentRouteLine.on('click', clearRoute);
+  currentRouteEndpoint.on('click', clearRoute);
+
+  // Smooth "drawing" animation: measure the SVG path length, then animate
+  // its stroke-dashoffset from full length down to 0.
+  requestAnimationFrame(() => {
+    const path = currentRouteLine.getElement ? currentRouteLine.getElement() : currentRouteLine._path;
+    if (path && path.getTotalLength) {
+      const length = path.getTotalLength();
+      path.style.transition = 'none';
+      path.style.strokeDasharray = `${length}`;
+      path.style.strokeDashoffset = `${length}`;
+      // Force a reflow so the browser registers the starting state before we transition it.
+      path.getBoundingClientRect();
+      path.style.transition = `stroke-dashoffset 1.2s cubic-bezier(.4,0,.2,1)`;
+      requestAnimationFrame(() => { path.style.strokeDashoffset = '0'; });
+    }
+  });
+
+  map.flyToBounds(currentRouteLine.getBounds(), { padding: [70, 100], duration: 1.2, easeLinearity: 0.25 });
+
+  const km = (route.distance / 1000).toFixed(1);
+  const mins = Math.round(route.duration / 60);
+  const hrs = Math.floor(mins / 60);
+  const timeLabel = hrs > 0 ? `${hrs} hr ${mins % 60} min` : `${mins} min`;
+  toast(`${destination.name}: ${km} km · about ${timeLabel} from home`);
+}
 
 /* ---------- Live user location (Google-Maps-style blue dot) ---------- */
 function userDotIcon() {

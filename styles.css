@@ -292,6 +292,17 @@ h1,h2,h3,.display{
 .btn-primary:hover{ filter: brightness(1.06); }
 .btn-ghost{ background: var(--bg); color: var(--ink); border:1.5px solid var(--line); }
 .btn-danger{ background: none; color: var(--home); border:1.5px solid color-mix(in srgb, var(--home) 40%, transparent); }
+.btn-directions{
+  display:flex; align-items:center; justify-content:center; gap:8px;
+  background: linear-gradient(145deg, #4285F4, #2f6fe0); color:#fff;
+}
+.btn-directions:hover{ filter: brightness(1.06); }
+.btn-directions:disabled{ opacity:.5; cursor:not-allowed; filter:none; }
+.btn-directions svg{ flex-shrink:0; }
+
+/* Route line drawn from home -> selected waypoint */
+.route-line{ filter: drop-shadow(0 2px 5px rgba(66,133,244,.45)); }
+.route-endpoint-icon{ transition: transform .3s var(--ease); }
 
 /* Detail sheet */
 .detail-head{ display:flex; align-items:center; gap:12px; margin-bottom:4px; }
