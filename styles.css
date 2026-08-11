@@ -291,12 +291,19 @@ h1,h2,h3,.display{
 
 /* First run empty hint */
 #emptyHint{
-  position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
-  z-index:400; text-align:center; max-width:260px; pointer-events:none;
-  color: var(--ink-soft);
+  position:absolute; left:50%; bottom: max(102px, calc(env(safe-area-inset-bottom) + 96px));
+  transform:translateX(-50%);
+  z-index:400; text-align:center; pointer-events:none;
+  display:flex; align-items:center; gap:8px;
+  background: var(--bg-elev); border:1px solid var(--line);
+  padding:9px 16px; border-radius:999px; box-shadow: var(--shadow);
+  white-space:nowrap;
+  opacity:0; animation: hintFadeIn .5s var(--ease) .3s forwards;
 }
-#emptyHint .display{ color: var(--ink); font-size:19px; margin-bottom:6px; }
-#emptyHint svg{ width:34px; height:34px; margin-bottom:10px; color: var(--accent); }
+#emptyHint .display{ display:none; }
+#emptyHint svg{ width:16px; height:16px; color: var(--accent); flex-shrink:0; }
+#emptyHint div:last-child{ font-size:12.5px; color: var(--ink-soft); }
+@keyframes hintFadeIn{ from{ opacity:0; transform:translateX(-50%) translateY(6px);} to{ opacity:1; transform:translateX(-50%) translateY(0);} }
 
 /* Loading splash */
 #splash{
