@@ -225,39 +225,72 @@ function initMap() {
   attachLongPress(map);
 }
 
-/* Long press detection (mouse + touch) that opens the form pre-filled with the tapped point */
+/* Long-press detection that opens the form pre-filled with the tapped point.
+   Uses native Pointer Events directly on the map container instead of Leaflet's
+   synthesized mouse events — Leaflet normalizes touch into 'mousedown'/'mouseup'
+   map events but never actually fires 'touchstart'/'touchmove'/'touchend' as map
+   events, so those listeners silently never ran on real touchscreens. Pointer
+   Events give one consistent code path for mouse, touch, and stylus alike. */
 function attachLongPress(mapInstance) {
-  let pressTimer = null;
-  let startLatLng = null;
+  const container = mapInstance.getContainer();
   const THRESHOLD_MS = 550;
   const MOVE_TOLERANCE_PX = 12;
+
+  let pressTimer = null;
   let startPoint = null;
+  let startLatLng = null;
+  let activePointerId = null;
+
+  function containerPoint(e) {
+    const rect = container.getBoundingClientRect();
+    return L.point(e.clientX - rect.left, e.clientY - rect.top);
+  }
 
   function begin(e) {
-    startLatLng = e.latlng;
-    startPoint = e.containerPoint;
+    if (activePointerId !== null) return;          // one press at a time
+    if (e.pointerType === 'mouse' && e.button !== 0) return; // left-click only
+    activePointerId = e.pointerId;
+    startPoint = containerPoint(e);
+    startLatLng = mapInstance.containerPointToLatLng(startPoint);
     pressTimer = setTimeout(() => {
-      handleLongPress(startLatLng);
       pressTimer = null;
+      handleLongPress(startLatLng);
+      reset();
     }, THRESHOLD_MS);
   }
-  function cancel() {
+
+  function reset() {
     if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
-  }
-  function move(e) {
-    if (!pressTimer || !startPoint) return;
-    const dx = e.containerPoint.x - startPoint.x;
-    const dy = e.containerPoint.y - startPoint.y;
-    if (Math.sqrt(dx * dx + dy * dy) > MOVE_TOLERANCE_PX) cancel();
+    activePointerId = null;
+    startPoint = null;
   }
 
-  mapInstance.on('mousedown', begin);
-  mapInstance.on('mouseup', cancel);
-  mapInstance.on('mousemove', move);
-  mapInstance.on('dragstart', cancel);
-  mapInstance.on('touchstart', begin);
-  mapInstance.on('touchend', cancel);
-  mapInstance.on('touchmove', move);
+  function onPointerUpOrCancel(e) {
+    if (activePointerId !== null && e.pointerId !== activePointerId) return;
+    reset();
+  }
+
+  function onPointerMove(e) {
+    if (pressTimer === null || activePointerId === null || e.pointerId !== activePointerId) return;
+    const pt = containerPoint(e);
+    const dx = pt.x - startPoint.x;
+    const dy = pt.y - startPoint.y;
+    if (Math.sqrt(dx * dx + dy * dy) > MOVE_TOLERANCE_PX) reset();
+  }
+
+  container.addEventListener('pointerdown', begin, { passive: true });
+  container.addEventListener('pointerup', onPointerUpOrCancel, { passive: true });
+  container.addEventListener('pointercancel', onPointerUpOrCancel, { passive: true });
+  container.addEventListener('pointerleave', onPointerUpOrCancel, { passive: true });
+  container.addEventListener('pointermove', onPointerMove, { passive: true });
+
+  // Panning or zooming mid-press means the user was navigating the map, not
+  // holding still to place a pin — cancel the pending long-press either way.
+  mapInstance.on('dragstart zoomstart', reset);
+
+  // Prevent the OS's own long-press context menu / text-selection callout
+  // from popping up and swallowing the gesture on Android and iOS.
+  container.addEventListener('contextmenu', (e) => e.preventDefault());
 }
 
 function handleLongPress(latlng) {
