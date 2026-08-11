@@ -26,7 +26,16 @@
   'use strict';
 
   /* ---------- Config ---------- */
-  var API_TEMPLATE = 'https://api.airplanes.live/v2/point/{lat}/{lon}/{r}';
+  // Multiple providers, tried in order. airplanes.live is the primary source
+  // Skylight uses, but ADS-B aggregator APIs are usually meant for server-side
+  // use and don't always send CORS headers for direct browser requests — so
+  // we fall through to CORS-friendly mirrors that speak the same readsb/
+  // ADSBExchange-compatible JSON shape ({ac: [...]}) if the first one fails.
+  var PROVIDERS = [
+    { name: 'airplanes.live', url: 'https://api.airplanes.live/v2/point/{lat}/{lon}/{r}' },
+    { name: 'adsb.lol', url: 'https://api.adsb.lol/v2/point/{lat}/{lon}/{r}' },
+    { name: 'adsb.fi', url: 'https://opendata.adsb.fi/api/v2/lat/{lat}/lon/{lon}/dist/{r}' },
+  ];
   var ADSBDB_CALLSIGN = 'https://api.adsbdb.com/v0/callsign/';
   var POLL_MS = 15000;            // steady-state poll cadence
   var MOVE_REFETCH_DEBOUNCE = 900; // ms after map settles before refetching
@@ -263,6 +272,61 @@
     return nmBetween(c.lat, c.lng, b.getNorthEast().lat, b.getNorthEast().lng);
   }
 
+  var workingProviderIndex = 0; // once one provider works, stick with it
+  var lastErrorToastAt = 0;
+  var everSucceeded = false;
+
+  function applySnapshot(json) {
+    var now = Date.now();
+    lastFetchAt = now;
+    var list = json.ac || json.aircraft || [];
+    for (var i = 0; i < list.length; i++) {
+      var n = normalize(list[i], now);
+      if (!n || typeof n.lat !== 'number' || typeof n.lon !== 'number') continue;
+      var prev = aircraft.get(n.hex);
+      if (prev) {
+        n.flight = n.flight || prev.flight;
+        n.typeCode = n.typeCode || prev.typeCode;
+        n.registration = n.registration || prev.registration;
+      }
+      aircraft.set(n.hex, n);
+    }
+    pruneStale(now);
+    everSucceeded = true;
+    updateBadge();
+  }
+
+  function tryProvider(idx, lat, lon, radiusNm, onDone) {
+    if (idx >= PROVIDERS.length) { onDone(false, 'all providers failed'); return; }
+    var p = PROVIDERS[idx];
+    var url = p.url
+      .replace('{lat}', lat.toFixed(4)).replace('{lon}', lon.toFixed(4)).replace('{r}', String(radiusNm));
+
+    var ac = new AbortController();
+    inFlightAbort = ac;
+    var timeout = setTimeout(function () { ac.abort(); }, 8000);
+
+    fetch(url, { signal: ac.signal, mode: 'cors' })
+      .then(function (res) {
+        clearTimeout(timeout);
+        if (!res.ok) throw new Error(p.name + ': HTTP ' + res.status);
+        return res.json();
+      })
+      .then(function (json) {
+        workingProviderIndex = idx;
+        applySnapshot(json);
+        onDone(true);
+      })
+      .catch(function (err) {
+        clearTimeout(timeout);
+        // A CORS block or network failure lands here as a generic TypeError
+        // ("Failed to fetch") — that's expected for some providers, so we
+        // just log it and move on to the next one rather than hiding it.
+        console.warn('[flights] provider failed:', p.name, err && err.message ? err.message : err);
+        tryProvider(idx + 1, lat, lon, radiusNm, onDone);
+      });
+  }
+
   function fetchAircraft() {
     if (!enabled || !mapRef || document.hidden) return;
     var c = mapRef.getCenter();
@@ -273,39 +337,19 @@
     if (zoomedTooFar) return; // too zoomed out — avoid a huge, laggy fetch
 
     if (inFlightAbort) inFlightAbort.abort();
-    var ac = new AbortController();
-    inFlightAbort = ac;
-    var url = API_TEMPLATE
-      .replace('{lat}', c.lat.toFixed(4))
-      .replace('{lon}', c.lng.toFixed(4))
-      .replace('{r}', String(radiusNm));
-
-    var timeout = setTimeout(function () { ac.abort(); }, 8000);
-    fetch(url, { signal: ac.signal })
-      .then(function (res) { if (!res.ok) throw new Error('HTTP ' + res.status); return res.json(); })
-      .then(function (json) {
-        clearTimeout(timeout);
+    tryProvider(workingProviderIndex, c.lat, c.lng, radiusNm, function (ok, reason) {
+      if (!ok) {
         var now = Date.now();
-        lastFetchAt = now;
-        var list = json.ac || json.aircraft || [];
-        var seenHex = new Set();
-        for (var i = 0; i < list.length; i++) {
-          var n = normalize(list[i], now);
-          if (!n || typeof n.lat !== 'number' || typeof n.lon !== 'number') continue;
-          seenHex.add(n.hex);
-          var prev = aircraft.get(n.hex);
-          if (prev) {
-            // keep a short trail of identity but refresh the position anchor
-            n.flight = n.flight || prev.flight;
-            n.typeCode = n.typeCode || prev.typeCode;
-            n.registration = n.registration || prev.registration;
+        if (now - lastErrorToastAt > 30000) { // don't spam
+          lastErrorToastAt = now;
+          if (typeof toast === 'function') {
+            toast(everSucceeded ? 'Flight data temporarily unavailable' : 'Could not reach any flight-tracking API — check your connection');
           }
-          aircraft.set(n.hex, n);
+          console.error('[flights]', reason);
         }
-        pruneStale(now);
-        updateBadge();
-      })
-      .catch(function () { clearTimeout(timeout); /* keep last-known aircraft on screen */ });
+        workingProviderIndex = 0; // start from the top again next time
+      }
+    });
   }
 
   function pruneStale(now) {
