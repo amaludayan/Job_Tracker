@@ -150,14 +150,33 @@ h1,h2,h3,.display{
 .locate-btn:active{ transform: scale(0.92); }
 .locate-btn.active{ background: #3B82F6; color:#fff; border-color:#3B82F6; }
 .locate-btn.locating svg{ animation: locate-pulse 1s ease-in-out infinite; }
-.locate-btn .locate-spinner{
+.locate-btn .locate-spinner, .navigate-btn .locate-spinner{
   position:absolute; inset:-4px; border-radius:50%;
   border: 2px solid transparent; border-top-color:#3B82F6; border-right-color:#3B82F6;
   opacity:0; pointer-events:none;
 }
-.locate-btn.locating .locate-spinner{ opacity:1; animation: locate-spin .8s linear infinite; }
+.locate-btn.locating .locate-spinner, .navigate-btn.locating .locate-spinner{ opacity:1; animation: locate-spin .8s linear infinite; }
 @keyframes locate-pulse{ 0%,100%{ transform:scale(1); } 50%{ transform:scale(0.82); } }
 @keyframes locate-spin{ to{ transform: rotate(360deg); } }
+
+/* ---------- Navigate button (stacked above locate, right side) ---------- */
+.navigate-btn{
+  position:absolute; right: max(18px, env(safe-area-inset-right));
+  bottom: calc(max(26px, env(safe-area-inset-bottom)) + 78px + 58px);
+  z-index:500;
+  width:46px; height:46px; border-radius:50%;
+  border:1px solid var(--line);
+  background: var(--bg-elev);
+  box-shadow: var(--shadow);
+  display:flex; align-items:center; justify-content:center;
+  cursor:pointer; color: var(--ink);
+  transition: transform .25s var(--ease), background .3s var(--ease), color .3s var(--ease);
+}
+.navigate-btn svg{ width:19px; height:19px; transition: transform .3s var(--ease); }
+.navigate-btn:hover{ transform: translateY(-2px) scale(1.04); }
+.navigate-btn:active{ transform: scale(0.92); }
+.navigate-btn.active{ background: #4285F4; color:#fff; border-color:#4285F4; box-shadow: 0 0 0 4px color-mix(in srgb, #4285F4 22%, transparent), var(--shadow); }
+.navigate-btn.active svg{ transform: rotate(0deg); }
 
 /* ---------- Cancel-directions button (left side, bouncy enter/exit) ---------- */
 .cancel-route-btn{
@@ -180,7 +199,7 @@ h1,h2,h3,.display{
 .cancel-route-btn:active{ transform: scale(0.86) rotate(90deg); }
 
 /* ---------- User location (Google-Maps-style blue dot) ---------- */
-.user-dot-icon{ transition: transform .45s cubic-bezier(.4,0,.2,1); will-change: transform; }
+.user-dot-icon, .user-nav-icon{ transition: transform .45s cubic-bezier(.4,0,.2,1); will-change: transform; }
 .user-dot{
   width:18px; height:18px; border-radius:50%;
   background:#4285F4; border:3px solid #fff;
@@ -192,19 +211,32 @@ h1,h2,h3,.display{
   background: radial-gradient(circle, rgba(66,133,244,.35) 0%, rgba(66,133,244,0) 70%);
   animation: user-dot-pulse 2.2s ease-out infinite;
 }
-.user-dot.heading::before{
-  content:''; position:absolute; left:50%; top:50%; width:0; height:0;
-  border-left:7px solid transparent; border-right:7px solid transparent;
-  border-bottom:14px solid rgba(66,133,244,.9);
-  transform: translate(-50%,-32px) rotate(var(--heading, 0deg));
-  transform-origin: 50% 32px;
-}
 @keyframes user-dot-pulse{
   0%{ transform:scale(0.4); opacity:.9; }
   100%{ transform:scale(1); opacity:0; }
 }
 .user-accuracy-circle{
   transition: all .45s cubic-bezier(.4,0,.2,1);
+}
+
+/* Real-time navigation marker — a heading-pointing triangle, like an in-car GPS puck. */
+.user-nav-wrap{
+  width:34px; height:34px; display:flex; align-items:center; justify-content:center;
+  position:relative;
+}
+.user-nav-wrap::after{
+  content:''; position:absolute; inset:2px; border-radius:50%;
+  background: radial-gradient(circle, rgba(66,133,244,.30) 0%, rgba(66,133,244,0) 72%);
+  animation: user-dot-pulse 2.2s ease-out infinite;
+  z-index:0;
+}
+.user-nav-arrow{
+  width:26px; height:26px; position:relative; z-index:1;
+  fill:#4285F4; stroke:#fff; stroke-width:1.3; stroke-linejoin:round;
+  filter: drop-shadow(0 2px 5px rgba(66,133,244,.55));
+  transform: rotate(0deg);
+  transform-origin: 50% 50%;
+  transition: transform .25s linear; /* fast, linear so heading turns feel responsive, not laggy */
 }
 
 /* ---------- Markers ---------- */

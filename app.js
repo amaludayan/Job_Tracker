@@ -75,6 +75,14 @@ let firstFixHandled = false;
 let currentRouteLine = null;
 let currentRouteEndpoint = null;
 
+/* Real-time navigation (heading-pointing arrow, auto-follow) */
+let navMode = false;
+let orientationHandler = null;
+let usingAbsoluteOrientation = false;
+let orientationRAF = null;
+let appliedHeading = 0;      // unwrapped (not mod 360) so rotation always takes the shortest path
+let lastNavLatLng = null;    // for GPS-course heading fallback when no compass is available
+
 const $ = (sel) => document.querySelector(sel);
 const el = {
   splash: $('#splash'),
@@ -127,6 +135,7 @@ const el = {
 
   toast: $('#toast'),
   locateBtn: $('#locateBtn'),
+  navigateBtn: $('#navigateBtn'),
   cancelRouteBtn: $('#cancelRouteBtn'),
 };
 
@@ -635,15 +644,28 @@ function userDotIcon() {
   });
 }
 
+function userNavIcon() {
+  return L.divIcon({
+    className: 'user-nav-icon',
+    html: `<div class="user-nav-wrap"><svg class="user-nav-arrow" viewBox="0 0 24 24"><path d="M12 2L4 21l8-5 8 5z"/></svg></div>`,
+    iconSize: [34, 34],
+    iconAnchor: [17, 17],
+  });
+}
+
+function currentUserIcon() {
+  return navMode ? userNavIcon() : userDotIcon();
+}
+
 function upsertUserLocation(pos, { fly = false } = {}) {
   const { latitude, longitude, accuracy } = pos.coords;
   const latlng = [latitude, longitude];
 
   if (!userMarker) {
-    userMarker = L.marker(latlng, { icon: userDotIcon(), zIndexOffset: 1000, interactive: false }).addTo(map);
+    userMarker = L.marker(latlng, { icon: currentUserIcon(), zIndexOffset: 1000, interactive: false }).addTo(map);
   } else {
     // setLatLng triggers Leaflet's internal transform update; the CSS transition
-    // on .user-dot-icon animates that transform smoothly instead of jumping.
+    // on .user-dot-icon / .user-nav-icon animates that transform smoothly instead of jumping.
     userMarker.setLatLng(latlng);
   }
 
@@ -670,11 +692,74 @@ function upsertUserLocation(pos, { fly = false } = {}) {
   }
 }
 
+/* Rotate the nav arrow to `targetDeg`, always turning the short way round
+   (e.g. 350deg -> 5deg turns forward 15deg, not backward 345deg). */
+function updateUserHeading(targetDeg) {
+  if (!navMode || !userMarker) return;
+  const arrow = userMarker.getElement()?.querySelector('.user-nav-arrow');
+  if (!arrow) return;
+  const target = ((targetDeg % 360) + 360) % 360;
+  let diff = target - (appliedHeading % 360);
+  if (diff > 180) diff -= 360;
+  if (diff < -180) diff += 360;
+  appliedHeading += diff;
+  arrow.style.transform = `rotate(${appliedHeading}deg)`;
+}
+
+function bearingBetween(lat1, lon1, lat2, lon2) {
+  const toRad = (d) => (d * Math.PI) / 180;
+  const toDeg = (r) => (r * 180) / Math.PI;
+  const dLon = toRad(lon2 - lon1);
+  const y = Math.sin(dLon) * Math.cos(toRad(lat2));
+  const x = Math.cos(toRad(lat1)) * Math.sin(toRad(lat2)) - Math.sin(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.cos(dLon);
+  return (toDeg(Math.atan2(y, x)) + 360) % 360;
+}
+
+function handleOrientation(e) {
+  let heading = null;
+  if (typeof e.webkitCompassHeading === 'number') {
+    heading = e.webkitCompassHeading; // iOS Safari: true compass heading, 0 = north
+  } else if (usingAbsoluteOrientation && typeof e.alpha === 'number') {
+    heading = (360 - e.alpha) % 360; // Android absolute orientation approximation
+  }
+  if (heading == null || Number.isNaN(heading)) return;
+  // Throttle to one update per animation frame — orientation events can fire
+  // far faster than the screen repaints.
+  if (orientationRAF) return;
+  orientationRAF = requestAnimationFrame(() => { updateUserHeading(heading); orientationRAF = null; });
+}
+
+async function requestOrientationPermission() {
+  if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+    try {
+      return (await DeviceOrientationEvent.requestPermission()) === 'granted';
+    } catch {
+      return false;
+    }
+  }
+  return true; // no explicit permission gate on this platform
+}
+
+function attachOrientationListener() {
+  usingAbsoluteOrientation = 'ondeviceorientationabsolute' in window;
+  orientationHandler = handleOrientation;
+  window.addEventListener('deviceorientationabsolute', orientationHandler, true);
+  window.addEventListener('deviceorientation', orientationHandler, true);
+}
+
+function detachOrientationListener() {
+  if (!orientationHandler) return;
+  window.removeEventListener('deviceorientationabsolute', orientationHandler, true);
+  window.removeEventListener('deviceorientation', orientationHandler, true);
+  orientationHandler = null;
+}
+
 function stopLocating() {
   if (watchId !== null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
   locateActive = false;
   firstFixHandled = false;
   el.locateBtn.classList.remove('active', 'locating');
+  stopNavigation();
   if (userMarker) { map.removeLayer(userMarker); userMarker = null; }
   if (userAccuracyCircle) { map.removeLayer(userAccuracyCircle); userAccuracyCircle = null; }
 }
@@ -689,10 +774,26 @@ function startLocating() {
     (pos) => {
       const isFirstFix = !firstFixHandled;
       firstFixHandled = true;
-      upsertUserLocation(pos, { fly: isFirstFix });
+      upsertUserLocation(pos, { fly: isFirstFix && !navMode });
+
       if (isFirstFix) {
         el.locateBtn.classList.remove('locating');
         el.locateBtn.classList.add('active');
+      }
+
+      if (navMode) {
+        const { latitude, longitude, heading } = pos.coords;
+        const targetZoom = Math.max(map.getZoom(), 17);
+        map.setView([latitude, longitude], targetZoom, { animate: true, duration: 0.6, easeLinearity: 0.3 });
+        if (typeof heading === 'number' && !Number.isNaN(heading)) {
+          // GPS-reported course over ground — most accurate while actually moving.
+          updateUserHeading(heading);
+        } else if (lastNavLatLng) {
+          // Stationary or no course data: fall back to bearing from the last fix.
+          const bearing = bearingBetween(lastNavLatLng[0], lastNavLatLng[1], latitude, longitude);
+          updateUserHeading(bearing);
+        }
+        lastNavLatLng = [latitude, longitude];
       }
     },
     (err) => {
@@ -717,6 +818,45 @@ el.locateBtn.addEventListener('click', () => {
     return;
   }
   startLocating();
+});
+
+/* ---------- Real-time navigation toggle ---------- */
+async function startNavigation() {
+  el.navigateBtn.classList.add('locating');
+  const orientationGranted = await requestOrientationPermission();
+  navMode = true;
+  lastNavLatLng = null;
+  appliedHeading = 0;
+
+  if (userMarker) userMarker.setIcon(currentUserIcon());
+  if (orientationGranted) attachOrientationListener();
+
+  if (!locateActive) {
+    startLocating();
+  } else if (userMarker) {
+    map.flyTo(userMarker.getLatLng(), Math.max(map.getZoom(), 17), { duration: 0.9, easeLinearity: 0.25 });
+  }
+
+  el.navigateBtn.classList.remove('locating');
+  el.navigateBtn.classList.add('active');
+  toast(orientationGranted ? 'Navigation started' : 'Navigation started (compass unavailable — using GPS course)');
+}
+
+function stopNavigation() {
+  if (!navMode) return;
+  navMode = false;
+  detachOrientationListener();
+  el.navigateBtn.classList.remove('active', 'locating');
+  if (userMarker) userMarker.setIcon(currentUserIcon());
+}
+
+el.navigateBtn.addEventListener('click', () => {
+  if (navMode) {
+    stopNavigation();
+    toast('Navigation stopped');
+  } else {
+    startNavigation();
+  }
 });
 
 /* ---------- Manage (edit list) sheet — top-left button ---------- */
