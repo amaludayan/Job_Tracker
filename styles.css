@@ -178,6 +178,46 @@ h1,h2,h3,.display{
 .navigate-btn.active{ background: #4285F4; color:#fff; border-color:#4285F4; box-shadow: 0 0 0 4px color-mix(in srgb, #4285F4 22%, transparent), var(--shadow); }
 .navigate-btn.active svg{ transform: rotate(0deg); }
 
+/* ---------- Persistent route info banner (distance / ETA while directions are active) ---------- */
+.route-info{
+  position:absolute; left:14px; right:14px;
+  top: calc(max(14px, env(safe-area-inset-top)) + 62px);
+  z-index:480;
+  display:flex; align-items:center; gap:12px;
+  background: var(--bg-elev); border:1px solid var(--line); box-shadow: var(--shadow);
+  border-radius:16px; padding:12px 12px 12px 14px;
+  opacity:0; transform: translateY(-14px) scale(0.97);
+  pointer-events:none;
+  transition: opacity .35s cubic-bezier(.34,1.56,.64,1), transform .4s cubic-bezier(.34,1.56,.64,1);
+}
+.route-info.show{ opacity:1; transform: translateY(0) scale(1); pointer-events:auto; }
+.route-info-icon{
+  flex-shrink:0; width:34px; height:34px; border-radius:50%;
+  background: linear-gradient(145deg, #4285F4, #2f6fe0);
+  display:flex; align-items:center; justify-content:center; color:#fff;
+}
+.route-info-icon svg{ width:16px; height:16px; }
+.route-info-body{ flex:1; min-width:0; }
+.route-info-top{ display:flex; align-items:baseline; gap:8px; }
+.route-info-top strong{ font-size:17px; font-weight:700; color: var(--ink); white-space:nowrap; }
+.route-info-top span{ font-size:12.5px; color: var(--ink-soft); white-space:nowrap; }
+.route-info-dest{
+  font-size:12px; color: var(--ink-soft); margin-top:2px;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.route-info.live .route-info-dest::before{
+  content:''; display:inline-block; width:6px; height:6px; border-radius:50%;
+  background:#3FB950; margin-right:6px; vertical-align:middle;
+  animation: user-dot-pulse 1.6s ease-out infinite;
+}
+.route-info-close{
+  flex-shrink:0; width:30px; height:30px; border-radius:50%; border:none;
+  background: var(--bg); color: var(--ink-soft); display:flex; align-items:center; justify-content:center;
+  cursor:pointer; transition: transform .2s var(--ease), background .2s var(--ease), color .2s var(--ease);
+}
+.route-info-close:hover{ background: color-mix(in srgb, var(--home) 14%, var(--bg)); color: var(--home); }
+.route-info-close:active{ transform: scale(0.88); }
+
 /* ---------- Cancel-directions button (left side, bouncy enter/exit) ---------- */
 .cancel-route-btn{
   position:absolute; left: max(18px, env(safe-area-inset-left));

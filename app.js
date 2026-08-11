@@ -74,6 +74,10 @@ let locateActive = false;
 let firstFixHandled = false;
 let currentRouteLine = null;
 let currentRouteEndpoint = null;
+let currentRouteLatLngs = null;   // [[lat,lng], ...] full route geometry, for live remaining-distance calc
+let currentRouteTotalDistance = 0; // meters, from OSRM
+let currentRouteTotalDuration = 0; // seconds, from OSRM
+let currentRouteDestination = null;
 
 /* Real-time navigation (heading-pointing arrow, auto-follow) */
 let navMode = false;
@@ -137,6 +141,11 @@ const el = {
   locateBtn: $('#locateBtn'),
   navigateBtn: $('#navigateBtn'),
   cancelRouteBtn: $('#cancelRouteBtn'),
+  routeInfo: $('#routeInfo'),
+  routeInfoDistance: $('#routeInfoDistance'),
+  routeInfoDuration: $('#routeInfoDuration'),
+  routeInfoDest: $('#routeInfoDest'),
+  routeInfoClose: $('#routeInfoClose'),
 };
 
 /* ---------- Toast ---------- */
@@ -596,10 +605,20 @@ async function fetchRoute(from, to) {
 function clearRoute() {
   if (currentRouteLine) { map.removeLayer(currentRouteLine); currentRouteLine = null; }
   if (currentRouteEndpoint) { map.removeLayer(currentRouteEndpoint); currentRouteEndpoint = null; }
+  currentRouteLatLngs = null;
+  currentRouteTotalDistance = 0;
+  currentRouteTotalDuration = 0;
+  currentRouteDestination = null;
   el.cancelRouteBtn.classList.remove('show');
+  el.routeInfo.classList.remove('show', 'live');
 }
 
 el.cancelRouteBtn.addEventListener('click', () => {
+  if (!currentRouteLine) return;
+  clearRoute();
+  toast('Directions cancelled');
+});
+el.routeInfoClose.addEventListener('click', () => {
   if (!currentRouteLine) return;
   clearRoute();
   toast('Directions cancelled');
@@ -608,6 +627,68 @@ el.cancelRouteBtn.addEventListener('click', () => {
 // Dedicated SVG renderer with generous padding so the route doesn't get
 // clipped at its edges when the user zooms or pans right after it's drawn.
 const routeRenderer = L.svg({ padding: 2 });
+
+function haversineMeters(a, b) {
+  const R = 6371000;
+  const toRad = (d) => (d * Math.PI) / 180;
+  const dLat = toRad(b[0] - a[0]);
+  const dLng = toRad(b[1] - a[1]);
+  const s = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(a[0])) * Math.cos(toRad(b[0])) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(s)));
+}
+
+function formatDistance(meters) {
+  return meters >= 1000 ? `${(meters / 1000).toFixed(1)} km` : `${Math.round(meters)} m`;
+}
+
+function formatDuration(seconds) {
+  const mins = Math.max(1, Math.round(seconds / 60));
+  const hrs = Math.floor(mins / 60);
+  return hrs > 0 ? `${hrs} hr ${mins % 60} min` : `${mins} min`;
+}
+
+function formatClock(date) {
+  return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+}
+
+function setRouteInfo(destName, distanceMeters, durationSeconds, { live = false } = {}) {
+  el.routeInfoDistance.textContent = formatDistance(distanceMeters);
+  const arriving = formatClock(new Date(Date.now() + durationSeconds * 1000));
+  el.routeInfoDuration.textContent = `${formatDuration(durationSeconds)} · arriving ${arriving}`;
+  el.routeInfoDest.textContent = `To: ${destName}`;
+  el.routeInfo.classList.add('show');
+  el.routeInfo.classList.toggle('live', live);
+}
+
+/* Finds how far along the drawn route the user currently is, then sums the
+   remaining road distance from there to the destination — far more accurate
+   than a straight-line guess, since it follows the actual route geometry. */
+function remainingRouteDistance(userLatLng) {
+  if (!currentRouteLatLngs || currentRouteLatLngs.length < 2) return null;
+  let nearestIdx = 0;
+  let nearestDist = Infinity;
+  for (let i = 0; i < currentRouteLatLngs.length; i++) {
+    const d = haversineMeters(userLatLng, currentRouteLatLngs[i]);
+    if (d < nearestDist) { nearestDist = d; nearestIdx = i; }
+  }
+  let remaining = nearestDist;
+  for (let i = nearestIdx; i < currentRouteLatLngs.length - 1; i++) {
+    remaining += haversineMeters(currentRouteLatLngs[i], currentRouteLatLngs[i + 1]);
+  }
+  return remaining;
+}
+
+/* Called on every live location fix while a route is active, so the banner
+   always reflects precisely how far and how long from *where the user is
+   right now* — not a stale figure from when directions were first requested. */
+function updateRouteProgress(userLatLng) {
+  if (!currentRouteLine || !currentRouteLatLngs || !currentRouteDestination) return;
+  const remainingDistance = remainingRouteDistance(userLatLng);
+  if (remainingDistance == null) return;
+  const avgSpeed = currentRouteTotalDistance > 0 ? currentRouteTotalDistance / currentRouteTotalDuration : null;
+  const remainingDuration = avgSpeed ? remainingDistance / avgSpeed : currentRouteTotalDuration;
+  setRouteInfo(currentRouteDestination.name, remainingDistance, remainingDuration, { live: true });
+}
 
 function drawRoute(route, home, destination) {
   clearRoute();
@@ -660,11 +741,18 @@ function drawRoute(route, home, destination) {
   map.flyToBounds(currentRouteLine.getBounds(), { padding: [70, 100], duration: 1.2, easeLinearity: 0.25 });
   el.cancelRouteBtn.classList.add('show');
 
-  const km = (route.distance / 1000).toFixed(1);
-  const mins = Math.round(route.duration / 60);
-  const hrs = Math.floor(mins / 60);
-  const timeLabel = hrs > 0 ? `${hrs} hr ${mins % 60} min` : `${mins} min`;
-  toast(`${destination.name}: ${km} km · about ${timeLabel} from home`);
+  currentRouteLatLngs = route.latlngs;
+  currentRouteTotalDistance = route.distance;
+  currentRouteTotalDuration = route.duration;
+  currentRouteDestination = destination;
+  // Live tracking (locate or navigate) is already running: show progress from
+  // exactly where the user is right now rather than the flat home->destination figure.
+  if (locateActive && userMarker) {
+    const ll = userMarker.getLatLng();
+    updateRouteProgress([ll.lat, ll.lng]);
+  } else {
+    setRouteInfo(destination.name, route.distance, route.duration, { live: false });
+  }
 }
 
 /* ---------- Live user location (Google-Maps-style blue dot) ---------- */
@@ -827,6 +915,12 @@ function startLocating() {
           updateUserHeading(bearing);
         }
         lastNavLatLng = [latitude, longitude];
+      }
+
+      // Keep the route banner precise while a route is on screen, whether
+      // the user is in full navigation mode or just has location tracking on.
+      if (currentRouteLine) {
+        updateRouteProgress([pos.coords.latitude, pos.coords.longitude]);
       }
     },
     (err) => {

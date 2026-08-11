@@ -39,6 +39,22 @@
     <span>Tap anywhere on the map to place the pin</span>
   </div>
 
+  <div id="routeInfo" class="route-info">
+    <div class="route-info-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
+    </div>
+    <div class="route-info-body">
+      <div class="route-info-top">
+        <strong id="routeInfoDistance">—</strong>
+        <span id="routeInfoDuration">—</span>
+      </div>
+      <div class="route-info-dest" id="routeInfoDest">To: —</div>
+    </div>
+    <button class="route-info-close" id="routeInfoClose" title="Cancel directions" aria-label="Cancel directions">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+    </button>
+  </div>
+
   <header class="topbar">
     <div class="brand">
       <svg class="mark" viewBox="0 0 100 100" fill="none">
