@@ -17,16 +17,16 @@
 }
 
 :root[data-theme="dark"]{
-  --bg: #0B1220;
-  --bg-elev: #121B2E;
-  --ink: #E8E6DE;
-  --ink-soft: #93A0B4;
-  --line: rgba(232,230,222,0.12);
+  --bg: #1A1A1E;
+  --bg-elev: #26262C;
+  --ink: #E8EAED;
+  --ink-soft: #9AA0A6;
+  --line: rgba(255,255,255,0.10);
   --accent: #D7A34E;
   --accent-ink: #F3D9A4;
   --home: #FF6369;
   --interview: #5B9BFF;
-  --shadow: 0 10px 34px rgba(0,0,0,0.45), 0 2px 10px rgba(0,0,0,0.3);
+  --shadow: 0 10px 34px rgba(0,0,0,0.55), 0 2px 10px rgba(0,0,0,0.4);
   color-scheme: dark;
 }
 
@@ -54,7 +54,10 @@ h1,h2,h3,.display{
 
 /* Leaflet tile dark-mode filter */
 :root[data-theme="dark"] .leaflet-tile-pane{
-  filter: brightness(0.62) contrast(1.05) saturate(0.85) invert(1) hue-rotate(180deg);
+  /* Google-Maps-style dark map: a clean near-black base with muted grey
+     roads and a desaturated blue-grey cast, instead of the murky/washed
+     look a plain brightness+saturate dip gives raw OSM tiles. */
+  filter: invert(1) hue-rotate(180deg) brightness(0.95) contrast(0.9) saturate(0.5);
 }
 .leaflet-tile-pane{ transition: filter .5s var(--ease); }
 .leaflet-container{ background: var(--bg) !important; }
