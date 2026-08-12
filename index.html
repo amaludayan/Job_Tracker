@@ -12,32 +12,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
-<!-- Content Security Policy: only allow the exact origins this app actually talks to.
-     Blocks inline scripts, blocks any unexpected third-party script/connect targets. -->
-<meta http-equiv="Content-Security-Policy" content="
-  default-src 'self';
-  script-src 'self' https://unpkg.com;
-  style-src 'self' 'unsafe-inline' https://unpkg.com;
-  img-src 'self' data: https://*.tile.openstreetmap.org;
-  connect-src 'self'
-    https://router.project-osrm.org
-    https://api.airplanes.live
-    https://api.adsb.lol
-    https://opendata.adsb.fi
-    https://api.adsbdb.com
-    https://*.supabase.co
-    wss://*.supabase.co;
-  object-src 'none';
-  base-uri 'self';
-  form-action 'self';
-  frame-ancestors 'none';
-">
-<meta http-equiv="X-Content-Type-Options" content="nosniff">
-<meta name="referrer" content="no-referrer">
-
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
-      crossorigin="anonymous" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -49,37 +24,6 @@
     <path d="M50 85 L58 50 L50 15 L42 50 Z" fill="#3B82F6" opacity="0"/>
   </svg>
   <div class="display" style="font-size:16px;color:#5B6675">Orienting the map…</div>
-</div>
-
-<!-- Auth gate: covers the whole app until a session exists. app.js/flights.js
-     never even initialize until authGate fires "waypoint:authed". -->
-<div class="overlay show" id="overlayAuth" style="z-index:2000;">
-  <div class="sheet" style="max-width:380px;">
-    <div class="sheet-handle"></div>
-    <h2 id="authTitle">Sign in to Waypoint</h2>
-    <p class="hint" id="authHint">Your waypoints sync to your account and stay private to you.</p>
-
-    <div class="field">
-      <label for="authEmail">Email</label>
-      <input type="email" id="authEmail" placeholder="you@example.com" autocomplete="email">
-    </div>
-    <div class="field" id="authPasswordField">
-      <label for="authPassword">Password</label>
-      <input type="password" id="authPassword" placeholder="At least 8 characters" autocomplete="current-password">
-    </div>
-
-    <div id="authError" style="color:#E5484D; font-size:13px; margin:-6px 0 14px; display:none;"></div>
-    <div id="authNotice" style="color:var(--ink-soft); font-size:13px; margin:-6px 0 14px; display:none;"></div>
-
-    <div class="btn-row">
-      <button class="btn btn-primary" id="authSubmit" style="width:100%;">Sign in</button>
-    </div>
-
-    <div style="display:flex; justify-content:space-between; margin-top:14px; font-size:13px;">
-      <a href="#" id="authToggleMode" style="color:var(--accent);">Create an account</a>
-      <a href="#" id="authForgotPassword" style="color:var(--ink-soft);">Forgot password?</a>
-    </div>
-  </div>
 </div>
 
 <div id="app">
@@ -261,15 +205,8 @@
   <div class="sheet">
     <div class="sheet-handle"></div>
     <h2>Backup &amp; storage</h2>
-    <p class="hint">🔒 Your waypoints sync to your account and are only ever visible to you (enforced by the database, not just the app).</p>
+    <p class="hint">🔒 Private by design — there is no server and no account. Everything below lives only in this browser, on this device.</p>
 
-    <div class="settings-row">
-      <div>
-        <div class="label">Account</div>
-        <div class="desc" id="accountEmailDesc">Signed in</div>
-      </div>
-      <button class="btn btn-ghost" id="signOutBtn" style="flex:none;padding:10px 16px;">Sign out</button>
-    </div>
     <div class="settings-row">
       <div>
         <div class="label">Export backup</div>
@@ -306,17 +243,7 @@
 
 <div id="toast"></div>
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
-        crossorigin="anonymous"></script>
-<!-- Pin an exact Supabase JS version — do not use @2 (floating) in production.
-     Verify/replace the integrity hash for whatever version you pin; see BACKEND-SETUP.md. -->
-<script src="https://unpkg.com/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"
-        crossorigin="anonymous"></script>
-<script src="supabase-config.js"></script>
-<script src="auth.js"></script>
-<script src="sync.js"></script>
-<script src="safe-import.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="flights.js"></script>
 <script src="app.js"></script>
 </body>
