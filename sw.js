@@ -7,6 +7,7 @@ const SHELL_FILES = [
   './styles.css',
   './app.js',
   './flights.js',
+  './safe-import.js',
   './manifest.json',
   './icons/icon-192.png',
   './icons/icon-512.png',
