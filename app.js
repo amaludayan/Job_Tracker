@@ -486,13 +486,14 @@ el.saveForm.addEventListener('click', async () => {
   const kind = pendingKind || (editingId ? waypoints.find(w => w.id === editingId)?.kind : 'interview') || 'interview';
 
   const record = {
-    id: editingId || `wp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    id: editingId || (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`),
     kind, name, lat, lng, note,
     createdAt: editingId ? (waypoints.find(w => w.id === editingId)?.createdAt || Date.now()) : Date.now(),
     updatedAt: Date.now(),
   };
 
   await dbPut(record);
+  if (window.WaypointSync) window.WaypointSync.push(record);
   const idx = waypoints.findIndex((w) => w.id === record.id);
   if (idx >= 0) waypoints[idx] = record; else waypoints.push(record);
   refreshMarker(record);
@@ -557,6 +558,7 @@ el.deleteDetail.addEventListener('click', async () => {
   if (!activeDetailId) return;
   if (!confirm('Delete this waypoint? This cannot be undone.')) return;
   await dbDelete(activeDetailId);
+  if (window.WaypointSync) window.WaypointSync.remove(activeDetailId);
   waypoints = waypoints.filter((w) => w.id !== activeDetailId);
   removeMarkerFromMap(activeDetailId);
   updateEmptyHint();
@@ -1066,27 +1068,33 @@ el.importFile.addEventListener('change', async (e) => {
   if (!file) return;
   try {
     const text = await file.text();
-    const data = JSON.parse(text);
-    const items = Array.isArray(data) ? data : data.waypoints;
-    if (!Array.isArray(items)) throw new Error('bad format');
+    // All untrusted import data is forced through SafeImport first: it caps
+    // batch size/payload size, strips control chars, rejects anything that
+    // looks like markup/script/URI-handler payloads, and HTML-escapes what
+    // survives. See safe-import.js.
+    const { items, errors } = SafeImport.parseImportPayload(text);
 
     let imported = 0;
-    for (const raw of items) {
-      if (typeof raw.lat !== 'number' || typeof raw.lng !== 'number' || !raw.name) continue;
+    for (const clean of items) {
       const record = {
-        id: raw.id || `wp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-        kind: raw.kind === 'home' ? 'home' : 'interview',
-        name: String(raw.name),
-        lat: raw.lat, lng: raw.lng,
-        note: raw.note || '',
-        createdAt: raw.createdAt || Date.now(),
+        id: clean.id,
+        kind: clean.kind,
+        name: clean.name,
+        lat: clean.lat,
+        lng: clean.lng,
+        note: clean.note,
+        createdAt: Date.now(),
         updatedAt: Date.now(),
       };
       await dbPut(record);
+      if (window.WaypointSync) window.WaypointSync.push(record);
       imported++;
     }
     await loadAll();
-    toast(`Imported ${imported} waypoint${imported === 1 ? '' : 's'}`);
+    if (errors.length) console.warn('Import warnings:', errors);
+    toast(imported
+      ? `Imported ${imported} waypoint${imported === 1 ? '' : 's'}${errors.length ? ` (${errors.length} skipped)` : ''}`
+      : 'No valid waypoints found in that file.');
   } catch (err) {
     console.error(err);
     toast('Could not read that file.');
@@ -1137,11 +1145,40 @@ if ('serviceWorker' in navigator) {
   });
 }
 
+/* ---------- Account ---------- */
+document.getElementById('signOutBtn')?.addEventListener('click', async () => {
+  if (!confirm('Sign out? Your waypoints stay saved to your account and this device.')) return;
+  if (window.WaypointAuth) await window.WaypointAuth.signOut();
+});
+if (window.supabaseClient) {
+  window.addEventListener('waypoint:authed', async () => {
+    const { data } = await window.supabaseClient.auth.getUser();
+    const desc = document.getElementById('accountEmailDesc');
+    if (desc && data.user) desc.textContent = data.user.email;
+  });
+}
+
 /* ---------- Boot ---------- */
-(async function boot() {
+// The app only initializes once auth.js confirms a signed-in session
+// (see "waypoint:authed" in auth.js). Until then the auth overlay covers
+// the screen, so nothing here is reachable by a signed-out user anyway —
+// this just avoids doing map/DB work before there's a user to scope it to.
+let booted = false;
+async function boot() {
+  if (booted) { await loadAll(); return; } // re-run merge/load on a later sign-in without re-initing the map
+  booted = true;
   initTheme();
   initMap();
   bindMapClickForPickMode();
+  if (window.WaypointSync) await window.WaypointSync.pullAndMerge();
   await loadAll();
   setTimeout(() => el.splash.classList.add('hide'), 350);
-})();
+}
+
+if (window.WaypointAuth) {
+  window.addEventListener('waypoint:authed', boot);
+} else {
+  // supabase-config.js not set up yet — fall back to running app immediately
+  // so the project still works before you wire up a backend.
+  boot();
+}
