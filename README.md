@@ -1,8 +1,9 @@
 # 🧭 Waypoint — Job Hunt Map
 
-**Version:** 1.1.0
+**Version:** 1.1.1
 **License:** MIT
 **Status:** Personal / hobby project
+**Live app:** [job-tracker-azure-five.vercel.app](https://job-tracker-azure-five.vercel.app/)
 
 Waypoint is an offline-first, map-based tracker for your job hunt. Instead of a
 spreadsheet, you drop pins for your **Home** and every **interview / company**
@@ -18,6 +19,7 @@ default.
 
 ## Table of contents
 
+- [Try it live](#try-it-live)
 - [Features](#features)
 - [Getting started](#getting-started)
 - [Using the app](#using-the-app)
@@ -30,6 +32,17 @@ default.
 - [Roadmap ideas](#roadmap-ideas)
 - [Disclaimer](#disclaimer)
 - [License](#license)
+
+---
+
+## Try it live
+
+No installation needed — you can use Waypoint straight from your browser here:
+
+👉 **[job-tracker-azure-five.vercel.app](https://job-tracker-azure-five.vercel.app/)**
+
+From there you can also install it as a PWA (look for "Install app" / "Add to
+Home Screen" in your browser's menu) so it behaves like a native app.
 
 ---
 

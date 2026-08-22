@@ -2,7 +2,7 @@
   "name": "Waypoint — Job Hunt Map",
   "short_name": "Waypoint",
   "description": "Mark interview locations and home on an offline-capable map.",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",

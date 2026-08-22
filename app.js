@@ -1,7 +1,7 @@
 /* ===================== Waypoint — app.js ===================== */
 
 /* ---------- App version ---------- */
-const APP_VERSION = '1.1.0';
+const APP_VERSION = '1.1.1';
 
 /* ---------- Tiny IndexedDB wrapper ---------- */
 const DB_NAME = 'waypoint-db';
@@ -324,10 +324,12 @@ function handleLongPress(latlng) {
 
 /* ---------- Marker rendering ---------- */
 function pinSVG(kind) {
-  const color = kind === 'home' ? '#E5484D' : '#3B82F6';
+  const color = kind === 'home' ? '#E5484D' : (kind === 'search' ? '#C89B3C' : '#3B82F6');
   const inner = kind === 'home'
     ? '<path d="M5 12l7-6 7 6" stroke="#fff" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M7 11v6h10v-6" stroke="#fff" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>'
-    : '<rect x="8" y="8" width="8" height="9" rx="0.6" stroke="#fff" stroke-width="1.5" fill="none"/><path d="M10 11h1M13 11h1M10 14h1M13 14h1" stroke="#fff" stroke-width="1.4" stroke-linecap="round"/>';
+    : kind === 'search'
+      ? '<circle cx="11" cy="11" r="4.4" stroke="#fff" stroke-width="1.6" fill="none"/><path d="M14.3 14.3L17 17" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/>'
+      : '<rect x="8" y="8" width="8" height="9" rx="0.6" stroke="#fff" stroke-width="1.5" fill="none"/><path d="M10 11h1M13 11h1M10 14h1M13 14h1" stroke="#fff" stroke-width="1.4" stroke-linecap="round"/>';
   return `
   <svg viewBox="0 0 24 30" xmlns="http://www.w3.org/2000/svg">
     <path d="M12 0C5.4 0 0 5.4 0 12c0 8.5 12 18 12 18s12-9.5 12-18C24 5.4 18.6 0 12 0z" fill="${color}"/>
@@ -339,7 +341,7 @@ function pinSVG(kind) {
 function makeIcon(kind) {
   return L.divIcon({
     className: '',
-    html: `<div class="pin">${pinSVG(kind)}</div>`,
+    html: `<div class="pin${kind === 'search' ? ' pin-search' : ''}">${pinSVG(kind)}</div>`,
     iconSize: [30, 30],
     iconAnchor: [15, 30],
     popupAnchor: [0, -28],
@@ -1178,6 +1180,19 @@ const elOverlaySearch = $('#overlaySearch');
 const elSearchInput = $('#searchInput');
 const elSearchResults = $('#searchResults');
 const elCloseSearch = $('#closeSearch');
+let searchResultMarker = null;
+
+function setSearchResultMarker(lat, lng, label) {
+  if (searchResultMarker) { map.removeLayer(searchResultMarker); searchResultMarker = null; }
+  searchResultMarker = L.marker([lat, lng], { icon: makeIcon('search'), riseOnHover: true, zIndexOffset: 900 });
+  searchResultMarker.bindPopup(escapeHTML(label || 'Searched location'));
+  searchResultMarker.addTo(map);
+  searchResultMarker.openPopup();
+}
+
+function clearSearchResultMarker() {
+  if (searchResultMarker) { map.removeLayer(searchResultMarker); searchResultMarker = null; }
+}
 
 if (elSearchBtn) {
   elSearchBtn.addEventListener('click', () => {
@@ -1201,9 +1216,11 @@ if (elSearchInput) {
         const results = await geocodePlaces(q);
         renderSearchResults(elSearchResults, results, (r) => {
           const lat = parseFloat(r.lat), lng = parseFloat(r.lon);
+          const label = (r.display_name || '').split(',')[0];
           hideOverlay(elOverlaySearch);
+          setSearchResultMarker(lat, lng, r.display_name);
           map.flyTo([lat, lng], 15, { duration: 1.2 });
-          toast(`Jumped to ${(r.display_name || '').split(',')[0]}`);
+          toast(`Jumped to ${label}`);
         });
       } catch {
         elSearchResults.innerHTML = `<li class="search-empty">Search failed. Check your connection.</li>`;

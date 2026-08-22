@@ -3,6 +3,13 @@
 All notable changes to Waypoint are documented in this file.
 This project follows [Semantic Versioning](https://semver.org/) (MAJOR.MINOR.PATCH).
 
+## [1.1.1] — 2026-08-22
+### Added
+- 📍 Searched locations now drop a distinct **gold "search pin"** marker on the
+  map (with a popup showing the place name), instead of only flying the map
+  to that spot with no visual marker.
+- Live app link added to `README.md`.
+
 ## [1.1.0] — 2026-08-22
 ### Added
 - 🔍 **Place search on the home screen** — a new search button in the top bar opens a

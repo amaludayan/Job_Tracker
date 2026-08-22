@@ -420,6 +420,16 @@ h1,h2,h3,.display{
   padding: 10px 2px;
 }
 
+/* Custom marker icon for a searched (not-yet-saved) location */
+.pin-search{
+  filter: drop-shadow(0 2px 5px rgba(0,0,0,0.35));
+  animation: pinSearchPop .35s ease;
+}
+@keyframes pinSearchPop{
+  from{ transform: translateY(-6px) scale(0.7); opacity:0; }
+  to{ transform: translateY(0) scale(1); opacity:1; }
+}
+
 /* ---- Settings footer: version + disclaimer ---- */
 .settings-footer{
   margin-top: 18px;
