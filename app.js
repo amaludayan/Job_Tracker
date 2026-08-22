@@ -1,5 +1,8 @@
 /* ===================== Waypoint — app.js ===================== */
 
+/* ---------- App version ---------- */
+const APP_VERSION = '1.1.0';
+
 /* ---------- Tiny IndexedDB wrapper ---------- */
 const DB_NAME = 'waypoint-db';
 const DB_VERSION = 1;
@@ -420,6 +423,9 @@ document.querySelectorAll('.choice-card').forEach((card) => {
 
 /* ---------- Form sheet (add / edit) ---------- */
 function openForm({ latlng = null, keepOpen = false } = {}) {
+  const fSearchEl = $('#fSearch'), fSearchResultsEl = $('#fSearchResults');
+  if (fSearchEl) fSearchEl.value = '';
+  if (fSearchResultsEl) fSearchResultsEl.innerHTML = '';
   if (!keepOpen) {
     el.fName.value = '';
     el.fLat.value = latlng ? latlng.lat.toFixed(6) : '';
@@ -1129,6 +1135,117 @@ async function updateCacheDesc() {
     el.cacheDesc.textContent = "Tiles you've viewed are saved for offline use";
   }
 }
+
+/* ---------- Place search (Nominatim / OpenStreetMap) ---------- */
+let searchDebounceTimer = null;
+let formSearchDebounceTimer = null;
+
+async function geocodePlaces(query) {
+  if (!query || query.trim().length < 2) return [];
+  const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=6&q=${encodeURIComponent(query)}`;
+  const res = await fetch(url, { headers: { 'Accept-Language': 'en' } });
+  if (!res.ok) throw new Error('Search request failed');
+  return res.json();
+}
+
+function renderSearchResults(container, results, onPick) {
+  container.innerHTML = '';
+  if (!results.length) {
+    container.innerHTML = `<li class="search-empty">No matches found. Try a different search.</li>`;
+    return;
+  }
+  results.forEach((r) => {
+    const li = document.createElement('li');
+    li.className = 'manage-item search-result-item';
+    const label = r.display_name || r.name || 'Unnamed place';
+    const primary = label.split(',')[0];
+    const rest = label.split(',').slice(1).join(',').trim();
+    li.innerHTML = `
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" style="flex-shrink:0;opacity:.6;"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0119 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.4"/></svg>
+      <span class="txt">
+        <strong>${escapeHTML(primary)}</strong>
+        <span>${escapeHTML(rest)}</span>
+      </span>
+    `;
+    li.addEventListener('click', () => onPick(r));
+    container.appendChild(li);
+  });
+}
+
+/* ---- Home screen search sheet ---- */
+const elSearchBtn = $('#searchBtn');
+const elOverlaySearch = $('#overlaySearch');
+const elSearchInput = $('#searchInput');
+const elSearchResults = $('#searchResults');
+const elCloseSearch = $('#closeSearch');
+
+if (elSearchBtn) {
+  elSearchBtn.addEventListener('click', () => {
+    elSearchResults.innerHTML = '';
+    elSearchInput.value = '';
+    showOverlay(elOverlaySearch);
+    setTimeout(() => elSearchInput.focus(), 150);
+  });
+}
+if (elCloseSearch) {
+  elCloseSearch.addEventListener('click', () => hideOverlay(elOverlaySearch));
+}
+if (elSearchInput) {
+  elSearchInput.addEventListener('input', () => {
+    clearTimeout(searchDebounceTimer);
+    const q = elSearchInput.value;
+    if (q.trim().length < 2) { elSearchResults.innerHTML = ''; return; }
+    elSearchResults.innerHTML = `<li class="search-loading">Searching…</li>`;
+    searchDebounceTimer = setTimeout(async () => {
+      try {
+        const results = await geocodePlaces(q);
+        renderSearchResults(elSearchResults, results, (r) => {
+          const lat = parseFloat(r.lat), lng = parseFloat(r.lon);
+          hideOverlay(elOverlaySearch);
+          map.flyTo([lat, lng], 15, { duration: 1.2 });
+          toast(`Jumped to ${(r.display_name || '').split(',')[0]}`);
+        });
+      } catch {
+        elSearchResults.innerHTML = `<li class="search-empty">Search failed. Check your connection.</li>`;
+      }
+    }, 450);
+  });
+}
+
+/* ---- Add/edit waypoint form search ---- */
+const elFSearch = $('#fSearch');
+const elFSearchResults = $('#fSearchResults');
+
+if (elFSearch) {
+  elFSearch.addEventListener('input', () => {
+    clearTimeout(formSearchDebounceTimer);
+    const q = elFSearch.value;
+    if (q.trim().length < 2) { elFSearchResults.innerHTML = ''; return; }
+    elFSearchResults.innerHTML = `<li class="search-loading">Searching…</li>`;
+    formSearchDebounceTimer = setTimeout(async () => {
+      try {
+        const results = await geocodePlaces(q);
+        renderSearchResults(elFSearchResults, results, (r) => {
+          const lat = parseFloat(r.lat), lng = parseFloat(r.lon);
+          el.fLat.value = lat;
+          el.fLng.value = lng;
+          if (!el.fName.value.trim()) {
+            el.fName.value = (r.display_name || '').split(',')[0];
+          }
+          elFSearchResults.innerHTML = '';
+          elFSearch.value = '';
+          toast('Location filled from search');
+        });
+      } catch {
+        elFSearchResults.innerHTML = `<li class="search-empty">Search failed. Check your connection.</li>`;
+      }
+    }, 450);
+  });
+}
+
+/* ---------- Version display ---------- */
+const elAppVersion = $('#appVersion');
+if (elAppVersion) elAppVersion.textContent = APP_VERSION;
 
 /* ---------- Service worker ---------- */
 if ('serviceWorker' in navigator) {
