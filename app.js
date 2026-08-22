@@ -1,7 +1,7 @@
 /* ===================== Waypoint — app.js ===================== */
 
 /* ---------- App version ---------- */
-const APP_VERSION = '1.1.1';
+const APP_VERSION = '1.1.2';
 
 /* ---------- Tiny IndexedDB wrapper ---------- */
 const DB_NAME = 'waypoint-db';
@@ -1185,9 +1185,18 @@ let searchResultMarker = null;
 function setSearchResultMarker(lat, lng, label) {
   if (searchResultMarker) { map.removeLayer(searchResultMarker); searchResultMarker = null; }
   searchResultMarker = L.marker([lat, lng], { icon: makeIcon('search'), riseOnHover: true, zIndexOffset: 900 });
-  searchResultMarker.bindPopup(escapeHTML(label || 'Searched location'));
+  const popupHtml = `
+    <div class="search-pin-popup">
+      <div class="search-pin-popup-label">${escapeHTML(label || 'Searched location')}</div>
+      <button type="button" class="search-pin-remove-btn">Remove pin</button>
+    </div>`;
+  searchResultMarker.bindPopup(popupHtml);
   searchResultMarker.addTo(map);
   searchResultMarker.openPopup();
+  searchResultMarker.on('popupopen', (e) => {
+    const btn = e.popup.getElement()?.querySelector('.search-pin-remove-btn');
+    if (btn) btn.addEventListener('click', () => clearSearchResultMarker());
+  });
 }
 
 function clearSearchResultMarker() {
@@ -1204,6 +1213,14 @@ if (elSearchBtn) {
 }
 if (elCloseSearch) {
   elCloseSearch.addEventListener('click', () => hideOverlay(elOverlaySearch));
+}
+const elClearSearchPinBtn = $('#clearSearchPinBtn');
+if (elClearSearchPinBtn) {
+  elClearSearchPinBtn.addEventListener('click', () => {
+    if (!searchResultMarker) { toast('No search pin on the map'); return; }
+    clearSearchResultMarker();
+    toast('Search pin removed');
+  });
 }
 if (elSearchInput) {
   elSearchInput.addEventListener('input', () => {

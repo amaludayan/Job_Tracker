@@ -1,6 +1,6 @@
 # 🧭 Waypoint — Job Hunt Map
 
-**Version:** 1.1.1
+**Version:** 1.1.2
 **License:** MIT
 **Status:** Personal / hobby project
 **Live app:** [job-tracker-azure-five.vercel.app](https://job-tracker-azure-five.vercel.app/)

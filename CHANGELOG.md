@@ -3,6 +3,12 @@
 All notable changes to Waypoint are documented in this file.
 This project follows [Semantic Versioning](https://semver.org/) (MAJOR.MINOR.PATCH).
 
+## [1.1.2] — 2026-08-22
+### Added
+- 🗑️ **Remove search pin** — the gold search-result pin's popup now has a
+  "Remove pin" button, and the search sheet has a "Remove pin from map"
+  button too, so you can clear it without having to search again to replace it.
+
 ## [1.1.1] — 2026-08-22
 ### Added
 - 📍 Searched locations now drop a distinct **gold "search pin"** marker on the

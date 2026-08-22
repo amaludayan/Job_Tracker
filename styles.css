@@ -429,6 +429,24 @@ h1,h2,h3,.display{
   from{ transform: translateY(-6px) scale(0.7); opacity:0; }
   to{ transform: translateY(0) scale(1); opacity:1; }
 }
+.search-pin-popup{ text-align:center; }
+.search-pin-popup-label{
+  font-size: 12.5px;
+  font-weight: 600;
+  margin-bottom: 6px;
+  max-width: 200px;
+}
+.search-pin-remove-btn{
+  border: none;
+  background: var(--danger, #E5484D);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.search-pin-remove-btn:hover{ opacity: 0.9; }
 
 /* ---- Settings footer: version + disclaimer ---- */
 .settings-footer{
